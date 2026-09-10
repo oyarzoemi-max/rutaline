@@ -72,7 +72,7 @@ export default async function handler(req, res) {
           quantity: 1,
         }],
         metadata: { pending_bid_id: pending.id },
-        success_url: `${siteUrl}/gracias?status=ok`,
+        success_url: `${siteUrl}/gracias?status=ok&category=${encodeURIComponent(category)}&destino=${encodeURIComponent(destino)}`,
         cancel_url: `${siteUrl}/gracias?status=cancelado`,
       });
       return res.status(200).json({ checkoutUrl: session.url });
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
         }],
         metadata: { pending_bid_id: pending.id },
         back_urls: {
-          success: `${siteUrl}/gracias?status=ok`,
+          success: `${siteUrl}/gracias?status=ok&category=${encodeURIComponent(category)}&destino=${encodeURIComponent(destino)}`,
           failure: `${siteUrl}/gracias?status=cancelado`,
           pending: `${siteUrl}/gracias?status=pendiente`,
         },
