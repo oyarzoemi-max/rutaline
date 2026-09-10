@@ -259,12 +259,35 @@ function ClaimModal({ initial, onClose }) {
     bidAmountUsd: initial.minBid,
     provider: 'stripe',
   });
+  const [minBid, setMinBid] = useState(initial.minBid);
+  const [checkingMin, setCheckingMin] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
+
+  // Cada vez que cambia la categoría o el destino elegidos DENTRO del formulario,
+  // recalculamos cuál es la oferta mínima real para esa combinación.
+  useEffect(() => {
+    let cancelled = false;
+    setCheckingMin(true);
+    fetch(`/api/listings?category=${form.category}&destino=${form.destino}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const top = (data.listings && data.listings[0]) ? data.listings[0].bid_cents : 0;
+        const nb = top > 0 ? top / 100 + 5 : 10;
+        setMinBid(nb);
+        // Si la oferta que el usuario había tipeado ya no alcanza para la nueva
+        // combinación, la actualizamos; si sigue siendo válida, la dejamos como está.
+        setForm((f) => (Number(f.bidAmountUsd) < nb ? { ...f, bidAmountUsd: nb } : f));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCheckingMin(false); });
+    return () => { cancelled = true; };
+  }, [form.category, form.destino]);
 
   async function submit(e) {
     e.preventDefault();
@@ -297,11 +320,33 @@ function ClaimModal({ initial, onClose }) {
       <form className="bid-form" onSubmit={submit}>
         <h3>Reclamá tu lugar</h3>
         <p className="hint">
-          Categoría <strong>{initial.category}</strong> · Destino <strong>{initial.destino}</strong> ·
-          oferta mínima ${initial.minBid}
+          Elegí la categoría y el destino exactos para tu negocio — la oferta mínima se
+          recalcula sola según dónde quieras aparecer.
         </p>
 
         {error && <div className="form-error">{error}</div>}
+
+        <div className="field" style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label>Categoría</label>
+            <select value={form.category} onChange={(e) => update('category', e.target.value)}>
+              {CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label>Destino</label>
+            <select value={form.destino} onChange={(e) => update('destino', e.target.value)}>
+              {DESTINATIONS.map((d) => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="form-note" style={{ marginTop: -8, marginBottom: 16 }}>
+          {checkingMin ? 'Calculando oferta mínima…' : `Oferta mínima para esta combinación: $${minBid}`}
+        </p>
 
         <div className="field">
           <label>Nombre del negocio</label>
@@ -318,7 +363,7 @@ function ClaimModal({ initial, onClose }) {
         <div className="field">
           <label>Tu oferta en USD</label>
           <input
-            required type="number" min={initial.minBid} step="1"
+            required type="number" min={minBid} step="1"
             value={form.bidAmountUsd}
             onChange={(e) => update('bidAmountUsd', e.target.value)}
           />
