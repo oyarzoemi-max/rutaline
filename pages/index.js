@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react';
-
-const CATEGORIES = [
-  { id: 'hoteles', label: 'Hoteles' },
-  { id: 'cruceros', label: 'Cruceros' },
-  { id: 'agencias', label: 'Agencias de viaje' },
-  { id: 'tours', label: 'Tours y excursiones' },
-];
-
-const DESTINATIONS = [
-  { id: 'cancun', label: 'Cancún, México' },
-  { id: 'bali', label: 'Bali, Indonesia' },
-  { id: 'roma', label: 'Roma, Italia' },
-  { id: 'santorini', label: 'Santorini, Grecia' },
-];
+import { useRouter } from 'next/router';
+import { CATEGORIES } from '../lib/categories';
 
 function Logo() {
   return (
@@ -27,7 +15,6 @@ function Logo() {
   );
 }
 
-// Formatea centavos guardados en la base como precio legible
 function formatBid(cents) {
   return cents > 0 ? `$${(cents / 100).toFixed(0)}` : 'Gratis';
 }
@@ -36,25 +23,58 @@ function nextBidLabel(cents) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [category, setCategory] = useState('hoteles');
-  const [destino, setDestino] = useState('cancun');
+  const [destino, setDestino] = useState('');
+  const [destinoOptions, setDestinoOptions] = useState([]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [prefill, setPrefill] = useState(null);
 
+  // Cada vez que cambia la categoría, cargamos qué destinos ya existen ahí
+  // (más la semilla de destinos populares) para el selector del ranking.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    fetch(`/api/listings?category=${category}&destino=${destino}`)
+    fetch(`/api/destinos?category=${category}`)
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) setListings(data.listings || []);
+        if (cancelled) return;
+        const opts = data.destinations || [];
+        setDestinoOptions(opts);
+        setDestino((d) => (opts.includes(d) ? d : (opts[0] || '')));
       })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [category]);
+
+  useEffect(() => {
+    if (!destino) { setListings([]); setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/listings?category=${category}&destino=${encodeURIComponent(destino)}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled) setListings(data.listings || []); })
       .catch(() => { if (!cancelled) setListings([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [category, destino]);
+
+  // Si llegamos desde el botón "sumar otra categoría" de la página de gracias,
+  // abrimos el formulario ya precargado con esa categoría y destino.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { openClaim, category: qCat, destino: qDest } = router.query;
+    if (openClaim) {
+      const cat = qCat || category;
+      const dest = qDest || destino || '';
+      setCategory(cat);
+      setDestino(dest);
+      setPrefill({ category: cat, destino: dest, minBid: 10 });
+      setFormOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   const topBidCents = listings.length ? listings[0].bid_cents : 0;
 
@@ -102,7 +122,7 @@ export default function Home() {
             <div className="step">
               <p className="num mono">01</p>
               <h3>Elegís destino y categoría</h3>
-              <p>Hoteles, cruceros, agencias, tours — en el destino donde ya tenés clientes buscando.</p>
+              <p>Escribís el destino donde ya tenés clientes buscando — si es nuevo, lo creás vos mismo.</p>
             </div>
             <div className="step">
               <p className="num mono">02</p>
@@ -139,8 +159,9 @@ export default function Home() {
             <div className="dest-row">
               <label>Destino</label>
               <select value={destino} onChange={(e) => setDestino(e.target.value)}>
-                {DESTINATIONS.map((d) => (
-                  <option key={d.id} value={d.id}>{d.label}</option>
+                {destinoOptions.length === 0 && <option value="">Sin destinos todavía</option>}
+                {destinoOptions.map((d) => (
+                  <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>
@@ -261,6 +282,7 @@ function ClaimModal({ initial, onClose }) {
   });
   const [minBid, setMinBid] = useState(initial.minBid);
   const [checkingMin, setCheckingMin] = useState(false);
+  const [destinoSuggestions, setDestinoSuggestions] = useState([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -268,20 +290,28 @@ function ClaimModal({ initial, onClose }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  // Cada vez que cambia la categoría o el destino elegidos DENTRO del formulario,
-  // recalculamos cuál es la oferta mínima real para esa combinación.
+  // Sugerencias de destino según la categoría elegida (para el datalist).
   useEffect(() => {
     let cancelled = false;
+    fetch(`/api/destinos?category=${form.category}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled) setDestinoSuggestions(data.destinations || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [form.category]);
+
+  // Recalcula la oferta mínima real cada vez que cambia categoría o destino.
+  useEffect(() => {
+    if (!form.destino) return;
+    let cancelled = false;
     setCheckingMin(true);
-    fetch(`/api/listings?category=${form.category}&destino=${form.destino}`)
+    fetch(`/api/listings?category=${form.category}&destino=${encodeURIComponent(form.destino)}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
         const top = (data.listings && data.listings[0]) ? data.listings[0].bid_cents : 0;
         const nb = top > 0 ? top / 100 + 5 : 10;
         setMinBid(nb);
-        // Si la oferta que el usuario había tipeado ya no alcanza para la nueva
-        // combinación, la actualizamos; si sigue siendo válida, la dejamos como está.
         setForm((f) => (Number(f.bidAmountUsd) < nb ? { ...f, bidAmountUsd: nb } : f));
       })
       .catch(() => {})
@@ -292,6 +322,10 @@ function ClaimModal({ initial, onClose }) {
   async function submit(e) {
     e.preventDefault();
     setError('');
+    if (!form.destino || !form.destino.trim()) {
+      setError('Escribí un destino (ej: "Lisboa, Portugal").');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/checkout', {
@@ -316,33 +350,38 @@ function ClaimModal({ initial, onClose }) {
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(11,31,53,0.55)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 50,
+      overflowY: 'auto',
     }}>
-      <form className="bid-form" onSubmit={submit}>
+      <form className="bid-form" onSubmit={submit} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <h3>Reclamá tu lugar</h3>
         <p className="hint">
-          Elegí la categoría y el destino exactos para tu negocio — la oferta mínima se
+          Elegí la categoría y escribí el destino exacto de tu negocio — la oferta mínima se
           recalcula sola según dónde quieras aparecer.
         </p>
 
         {error && <div className="form-error">{error}</div>}
 
-        <div className="field" style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Categoría</label>
-            <select value={form.category} onChange={(e) => update('category', e.target.value)}>
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>Destino</label>
-            <select value={form.destino} onChange={(e) => update('destino', e.target.value)}>
-              {DESTINATIONS.map((d) => (
-                <option key={d.id} value={d.id}>{d.label}</option>
-              ))}
-            </select>
-          </div>
+        <div className="field">
+          <label>Categoría</label>
+          <select value={form.category} onChange={(e) => update('category', e.target.value)}>
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label>Destino</label>
+          <input
+            list="destino-suggestions"
+            required
+            placeholder='Ej: "Lisboa, Portugal" — si es nuevo, lo creás vos'
+            value={form.destino}
+            onChange={(e) => update('destino', e.target.value)}
+          />
+          <datalist id="destino-suggestions">
+            {destinoSuggestions.map((d) => (<option key={d} value={d} />))}
+          </datalist>
         </div>
         <p className="form-note" style={{ marginTop: -8, marginBottom: 16 }}>
           {checkingMin ? 'Calculando oferta mínima…' : `Oferta mínima para esta combinación: $${minBid}`}
