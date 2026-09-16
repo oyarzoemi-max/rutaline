@@ -1,5 +1,5 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import { confirmPendingBid } from './stripe'; // reutilizamos la misma función de confirmación
+import { confirmPendingBid } from '../../../lib/confirmBid';
 
 const mpClient = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
