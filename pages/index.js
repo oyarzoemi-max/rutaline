@@ -278,7 +278,7 @@ function ClaimModal({ initial, onClose }) {
     url: '',
     blurb: '',
     bidAmountUsd: initial.minBid,
-    provider: 'stripe',
+    provider: 'paypal',
   });
   const [minBid, setMinBid] = useState(initial.minBid);
   const [checkingMin, setCheckingMin] = useState(false);
@@ -410,8 +410,8 @@ function ClaimModal({ initial, onClose }) {
 
         <div className="provider-choice">
           <label>
-            <input type="radio" name="provider" checked={form.provider === 'stripe'} onChange={() => update('provider', 'stripe')} />
-            Tarjeta (Stripe)
+            <input type="radio" name="provider" checked={form.provider === 'paypal'} onChange={() => update('provider', 'paypal')} />
+            PayPal
           </label>
           <label>
             <input type="radio" name="provider" checked={form.provider === 'mercadopago'} onChange={() => update('provider', 'mercadopago')} />
