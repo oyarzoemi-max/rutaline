@@ -1,9 +1,7 @@
-import Stripe from 'stripe';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { supabaseAdmin } from '../../lib/supabase';
 import { nextMinimumBid } from '../../lib/pricing';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { createPaypalOrder } from '../../lib/paypal';
 
 const mpClient = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
@@ -20,7 +18,7 @@ export default async function handler(req, res) {
     if (!category || !destino || !name || !url || !bidAmountUsd || !provider) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
-    if (!['stripe', 'mercadopago'].includes(provider)) {
+    if (!['paypal', 'mercadopago'].includes(provider)) {
       return res.status(400).json({ error: 'Procesador de pago inválido' });
     }
 
@@ -55,27 +53,23 @@ export default async function handler(req, res) {
 
     if (pendingError) throw pendingError;
 
-    const siteUrl = process.env.SITE_URL; // ej: https://rutaline.com
+    const siteUrl = process.env.SITE_URL; // ej: https://rutaline.vercel.app
 
-    if (provider === 'stripe') {
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            unit_amount: bidCents,
-            product_data: {
-              name: `Rutaline — posición en ${category} / ${destino}`,
-              description: name,
-            },
-          },
-          quantity: 1,
-        }],
-        metadata: { pending_bid_id: pending.id },
-        success_url: `${siteUrl}/gracias?status=ok&category=${encodeURIComponent(category)}&destino=${encodeURIComponent(destino)}`,
-        cancel_url: `${siteUrl}/gracias?status=cancelado`,
+    if (provider === 'paypal') {
+      // PayPal necesita saber a qué oferta pendiente corresponde el pago
+      // cuando el negocio vuelva de aprobarlo — se lo pasamos en la URL de retorno.
+      const returnParams = new URLSearchParams({
+        pending_bid_id: pending.id,
+        category,
+        destino,
       });
-      return res.status(200).json({ checkoutUrl: session.url });
+      const { approveUrl } = await createPaypalOrder({
+        amountUsd: bidCents / 100,
+        description: `Rutaline — ${category} / ${destino} — ${name}`,
+        returnUrl: `${siteUrl}/api/paypal-capture?${returnParams.toString()}`,
+        cancelUrl: `${siteUrl}/gracias?status=cancelado`,
+      });
+      return res.status(200).json({ checkoutUrl: approveUrl });
     }
 
     // Mercado Pago
