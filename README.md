@@ -9,12 +9,16 @@ y una base de datos (Supabase) que guarda los listados y ofertas.
 3. En **Project Settings > API** copiá `Project URL` y `service_role key` (secreta,
    nunca la subas a un repositorio público) — van en `.env.local`.
 
-## 2. Stripe
-1. Creá una cuenta en stripe.com y completá la verificación de tu negocio
-   (puede tardar 1-3 días; empezala cuanto antes).
-2. En **Developers > API keys** copiá la `Secret key`.
-3. Todavía no vas a poder crear el webhook hasta tener el sitio desplegado
-   (necesita una URL pública) — lo hacemos en el paso 5.
+## 2. PayPal
+1. Creá una cuenta en developer.paypal.com con tu cuenta de PayPal (o creá una si no tenés).
+2. Andá a **Apps & Credentials**. Por defecto vas a estar en modo "Sandbox" (pruebas) —
+   ahí mismo, **Create App** te da un `Client ID` y un `Client Secret` de prueba.
+3. Con esas dos claves y `PAYPAL_API_BASE=https://api-m.sandbox.paypal.com` ya podés probar
+   pagos falsos de punta a punta (PayPal te deja crear cuentas de comprador/vendedor de prueba
+   en **Sandbox > Accounts**).
+4. Cuando quieras cobrar de verdad: arriba a la derecha cambiá de "Sandbox" a "Live", creá la
+   app ahí también, y reemplazá `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` y
+   `PAYPAL_API_BASE=https://api-m.paypal.com` en Vercel.
 
 ## 3. Mercado Pago
 1. Creá una cuenta de vendedor en mercadopago.com (o el dominio de tu país).
@@ -28,12 +32,10 @@ y una base de datos (Supabase) que guarda los listados y ofertas.
    primer deploy, con la URL que te da Vercel).
 4. Desplegá. Después conectá tu dominio comprado en **Settings > Domains**.
 
-## 5. Activar los webhooks (con el sitio ya en línea)
-- **Stripe**: Developers > Webhooks > Add endpoint →
-  `https://tudominio.com/api/webhooks/stripe`, evento `checkout.session.completed`.
-  Copiá el `Signing secret` que te da y cargalo como `STRIPE_WEBHOOK_SECRET` en Vercel.
-- **Mercado Pago**: se configura automáticamente vía `notification_url` en el código
-  (usa `SITE_URL`), no hace falta nada manual.
+## 5. Webhook de Mercado Pago
+Se configura automáticamente vía `notification_url` en el código (usa `SITE_URL`),
+no hace falta nada manual. PayPal no necesita webhook en este proyecto: el pago se
+confirma cuando el negocio vuelve de aprobarlo, en `/api/paypal-capture`.
 
 ## Cómo funciona el flujo de pago
 1. Un negocio completa el formulario de oferta en el sitio.
