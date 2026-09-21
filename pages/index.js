@@ -32,8 +32,6 @@ export default function Home() {
   const [formOpen, setFormOpen] = useState(false);
   const [prefill, setPrefill] = useState(null);
 
-  // Cada vez que cambia la categoría, cargamos qué destinos ya existen ahí
-  // (más la semilla de destinos populares) para el selector del ranking.
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/destinos?category=${category}`)
@@ -60,8 +58,6 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [category, destino]);
 
-  // Si llegamos desde el botón "sumar otra categoría" de la página de gracias,
-  // abrimos el formulario ya precargado con esa categoría y destino.
   useEffect(() => {
     if (!router.isReady) return;
     const { openClaim, category: qCat, destino: qDest } = router.query;
@@ -213,7 +209,7 @@ export default function Home() {
         <div className="wrap">
           <div className="section-head">
             <h2>Cómo se paga</h2>
-            <p>Listado base gratis para todos. Estas son las formas de subir posiciones.</p>
+            <p>Listado base gratis para todos. Pagás únicamente con PayPal, de forma simple y directa.</p>
           </div>
           <div className="pricing-grid">
             <div className="ticket">
@@ -231,7 +227,7 @@ export default function Home() {
               <h3>Oferta por posición</h3>
               <div className="price">Desde $10</div>
               <ul>
-                <li>Subís al instante al pagar</li>
+                <li>Subís al instante al pagar con PayPal</li>
                 <li>Solo pagás la diferencia si volvés a ofertar</li>
                 <li>Renovación cada 30 días</li>
               </ul>
@@ -278,7 +274,6 @@ function ClaimModal({ initial, onClose }) {
     url: '',
     blurb: '',
     bidAmountUsd: initial.minBid,
-    provider: 'paypal',
   });
   const [minBid, setMinBid] = useState(initial.minBid);
   const [checkingMin, setCheckingMin] = useState(false);
@@ -290,7 +285,6 @@ function ClaimModal({ initial, onClose }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  // Sugerencias de destino según la categoría elegida (para el datalist).
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/destinos?category=${form.category}`)
@@ -300,7 +294,6 @@ function ClaimModal({ initial, onClose }) {
     return () => { cancelled = true; };
   }, [form.category]);
 
-  // Recalcula la oferta mínima real cada vez que cambia categoría o destino.
   useEffect(() => {
     if (!form.destino) return;
     let cancelled = false;
@@ -408,19 +401,12 @@ function ClaimModal({ initial, onClose }) {
           />
         </div>
 
-        <div className="provider-choice">
-          <label>
-            <input type="radio" name="provider" checked={form.provider === 'paypal'} onChange={() => update('provider', 'paypal')} />
-            PayPal
-          </label>
-          <label>
-            <input type="radio" name="provider" checked={form.provider === 'mercadopago'} onChange={() => update('provider', 'mercadopago')} />
-            Mercado Pago
-          </label>
-        </div>
+        <p className="form-note" style={{ marginBottom: 14 }}>
+          El pago se hace con PayPal — te vamos a redirigir a su sitio para confirmarlo.
+        </p>
 
         <button className="btn" type="submit" disabled={submitting} style={{ width: '100%' }}>
-          {submitting ? 'Redirigiendo al pago…' : 'Ir a pagar y reclamar el lugar'}
+          {submitting ? 'Redirigiendo a PayPal…' : 'Ir a pagar con PayPal'}
         </button>
         <button type="button" onClick={onClose} className="form-note" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'block', margin: '12px auto 0' }}>
           Cancelar
