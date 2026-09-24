@@ -10,12 +10,12 @@ export default async function handler(req, res) {
 
   const { data, error } = await supabaseAdmin
     .from('listings')
-    .select('id, name, url, blurb, bid_cents, clicks, founder')
+    .select('id, name, url, blurb, bid_cents, clicks, founder, logo_url')
     .eq('category', category)
     .eq('destino', destino)
-    .or(`paid_until.is.null,paid_until.gte.${now}`) // oculta listados vencidos que no eran gratis
+    .or(`paid_until.is.null,paid_until.gte.${now}`)
     .order('bid_cents', { ascending: false })
-    .order('created_at', { ascending: true }); // empate: gana quien entró primero
+    .order('created_at', { ascending: true });
 
   if (error) {
     console.error(error);

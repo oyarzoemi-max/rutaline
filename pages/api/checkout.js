@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { category, destino, name, url, blurb, bidAmountUsd } = req.body;
+    const { category, destino, name, url, blurb, bidAmountUsd, logoUrl } = req.body;
 
     if (!category || !destino || !name || !url || !bidAmountUsd) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
@@ -39,6 +39,7 @@ export default async function handler(req, res) {
       .insert({
         category, destino, name, url, blurb: blurb || '',
         bid_cents: bidCents, provider: 'paypal', status: 'pending',
+        logo_url: logoUrl || null,
       })
       .select()
       .single();
